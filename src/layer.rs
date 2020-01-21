@@ -7,12 +7,32 @@ use tracing_core::{
 };
 use tracing_subscriber::{
     layer::{Context, Layer},
-    registry::LookupSpan,
+    registry::{LookupSpan, Registry},
 };
 
 #[derive(Default)]
 pub struct Metrics {
     clock: Clock,
+}
+
+pub trait MetricsExt {
+    fn with_timer(&self);
+}
+
+impl MetricsExt for tracing::Span {
+    fn with_timer(&self) {
+        self.with_subscriber(|(id, subscriber)| {
+            if let Some(_) = subscriber.downcast_ref::<Metrics>() {
+                if let Some(registry) = subscriber.downcast_ref::<Registry>() {
+                    let span = registry
+                        .span(id)
+                        .expect("in new_span but span does not exist");
+                    let data = MetricData::default();
+                    span.extensions_mut().replace(data);
+                }
+            }
+        });
+    }
 }
 
 #[derive(Default)]
@@ -35,11 +55,10 @@ impl MetricData {
     }
 
     pub fn flush(&mut self, metadata: &'static Metadata<'static>) {
-        let target = metadata.target().replace("::", "_");
         if self.enter_count > 0 {
-            counter!(format!("{}_{}", target, metadata.name()), self.enter_count);
+            counter!(format!("{}", metadata.name()), self.enter_count);
             timing!(
-                format!("{}_{}_ns", target, metadata.name()),
+                format!("{}_ns", metadata.name()),
                 self.entered.take().unwrap(),
                 self.exited.take().unwrap()
             );
@@ -51,41 +70,38 @@ impl<S> Layer<S> for Metrics
 where
     S: Subscriber + for<'span> LookupSpan<'span> + Debug,
 {
-    fn new_span(&self, attrs: &Attributes, id: &Id, ctx: Context<S>) {
-        let data = MetricData::default();
-        let span = ctx.span(id).expect("in new_span but span does not exist");
-        span.extensions_mut().insert(data);
+    fn new_span(&self, _: &Attributes, id: &Id, ctx: Context<S>) {
+        // let data = MetricData::default();
+        // let span = ctx.span(id).expect("in new_span but span does not exist");
+        // span.extensions_mut().insert(data);
     }
 
-    fn on_record(&self, id: &Id, values: &Record<'_>, _ctx: Context<S>) {}
+    fn on_record(&self, _: &Id, _: &Record<'_>, _: Context<S>) {}
 
-    fn on_event(&self, event: &Event<'_>, _ctx: Context<S>) {}
+    fn on_event(&self, _: &Event<'_>, _: Context<S>) {}
 
     fn on_enter(&self, id: &Id, ctx: Context<S>) {
         let span = ctx.span(id).expect("in on_enter but span does not exist");
         let mut ext = span.extensions_mut();
-        let data = ext
-            .get_mut::<MetricData>()
-            .expect("span does not have metric data");
-        data.mark_entered(self.clock.now());
+        if let Some(data) = ext.get_mut::<MetricData>() {
+            data.mark_entered(self.clock.now());
+        }
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<S>) {
         let now = self.clock.now();
         let span = ctx.span(id).expect("in on_exit but span does not exist");
         let mut ext = span.extensions_mut();
-        let data = ext
-            .get_mut::<MetricData>()
-            .expect("span does not have metric data");
-        data.mark_exited(now);
+        if let Some(data) = ext.get_mut::<MetricData>() {
+            data.mark_exited(now);
+        }
     }
 
     fn on_close(&self, id: Id, ctx: Context<S>) {
         let span = ctx.span(&id).expect("in on_close but span does not exist");
         let mut ext = span.extensions_mut();
-        let data = ext
-            .get_mut::<MetricData>()
-            .expect("span does not have metric data");
-        data.flush(span.metadata());
+        if let Some(data) = ext.get_mut::<MetricData>() {
+            data.flush(span.metadata());
+        }
     }
 }

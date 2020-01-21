@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 tracing-core = "^0.1"
 tracing = "^0.1"
-tracing-subscriber = { git = "http://github.com/tokio-rs/tracing", features = ["registry"] }
+tracing-subscriber = "0.2.0-alpha.4"
 slab = "^0.4"
 parking_lot = "^0.9"
 quanta = "^0.3"
