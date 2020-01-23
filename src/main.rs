@@ -41,10 +41,7 @@ impl Recorder for PrintRecorder {
 
 #[tracing::instrument]
 fn shave(yak: usize) -> bool {
-    dbg!(Span::current());
     Span::current().with_timer();
-    // let span = span!(Level::INFO, "shave", yak);
-    // let _span = span.enter();
     debug!(
         message = "hello! I'm gonna shave a yak.",
         excitement = "yay!"
@@ -59,8 +56,7 @@ fn shave(yak: usize) -> bool {
 }
 
 fn shave_all(yaks: usize) -> usize {
-    let span = span!(Level::TRACE, "shaving_yaks", yaks_to_shave = yaks);
-    span.with_timer();
+    let span = span!(Level::TRACE, "shaving_yaks", yaks_to_shave = yaks).with_timer();
     let _enter = span.enter();
 
     info!("shaving yaks");

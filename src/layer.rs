@@ -1,6 +1,7 @@
 use metrics::{counter, timing};
 use quanta::Clock;
 use std::fmt::Debug;
+use tracing::Span;
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Metadata, Subscriber,
@@ -16,22 +17,42 @@ pub struct Metrics {
 }
 
 pub trait MetricsExt {
-    fn with_timer(&self);
+    fn with_timer(self) -> Self;
 }
 
 impl MetricsExt for tracing::Span {
-    fn with_timer(&self) {
+    fn with_timer(self) -> Self {
         self.with_subscriber(|(id, subscriber)| {
             if let Some(_) = subscriber.downcast_ref::<Metrics>() {
                 if let Some(registry) = subscriber.downcast_ref::<Registry>() {
                     let span = registry
                         .span(id)
                         .expect("in new_span but span does not exist");
-                    let data = MetricData::default();
-                    span.extensions_mut().replace(data);
+                    let mut data = MetricData::default();
+                    data.mark_entered(Clock::default().now());
+                    span.extensions_mut().insert(data);
                 }
             }
         });
+        self
+    }
+}
+
+impl<'a> MetricsExt for &'a tracing::Span {
+    fn with_timer(self) -> Self {
+        self.with_subscriber(|(id, subscriber)| {
+            if let Some(_) = subscriber.downcast_ref::<Metrics>() {
+                if let Some(registry) = subscriber.downcast_ref::<Registry>() {
+                    let span = registry
+                        .span(id)
+                        .expect("in new_span but span does not exist");
+                    let mut data = MetricData::default();
+                    data.mark_entered(Clock::default().now());
+                    span.extensions_mut().insert(data);
+                }
+            }
+        });
+        self
     }
 }
 
@@ -70,11 +91,7 @@ impl<S> Layer<S> for Metrics
 where
     S: Subscriber + for<'span> LookupSpan<'span> + Debug,
 {
-    fn new_span(&self, _: &Attributes, id: &Id, ctx: Context<S>) {
-        // let data = MetricData::default();
-        // let span = ctx.span(id).expect("in new_span but span does not exist");
-        // span.extensions_mut().insert(data);
-    }
+    fn new_span(&self, _: &Attributes, _: &Id, _: Context<S>) {}
 
     fn on_record(&self, _: &Id, _: &Record<'_>, _: Context<S>) {}
 
