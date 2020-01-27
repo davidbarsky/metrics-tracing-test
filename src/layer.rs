@@ -1,7 +1,7 @@
 use metrics::{counter, timing};
+use once_cell::sync::Lazy;
 use quanta::Clock;
 use std::fmt::Debug;
-use tracing::Span;
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Metadata, Subscriber,
@@ -11,10 +11,10 @@ use tracing_subscriber::{
     registry::{LookupSpan, Registry},
 };
 
+static CLOCK: Lazy<Clock> = Lazy::new(|| Clock::default());
+
 #[derive(Default)]
-pub struct Metrics {
-    clock: Clock,
-}
+pub struct Metrics;
 
 pub trait MetricsExt {
     fn with_timer(self) -> Self;
@@ -101,12 +101,12 @@ where
         let span = ctx.span(id).expect("in on_enter but span does not exist");
         let mut ext = span.extensions_mut();
         if let Some(data) = ext.get_mut::<MetricData>() {
-            data.mark_entered(self.clock.now());
+            data.mark_entered(CLOCK.now());
         }
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<S>) {
-        let now = self.clock.now();
+        let now = CLOCK.now();
         let span = ctx.span(id).expect("in on_exit but span does not exist");
         let mut ext = span.extensions_mut();
         if let Some(data) = ext.get_mut::<MetricData>() {

@@ -25,11 +25,11 @@ fn nanos_to_readable(t: u64) -> String {
 }
 
 impl Recorder for PrintRecorder {
-    fn increment_counter(&self, key: Key, value: u64) {
+    fn increment_counter(&self, _: Key, _: u64) {
         // println!("metrics -> counter(name={}, value={})", key, value);
     }
 
-    fn update_gauge(&self, key: Key, value: i64) {
+    fn update_gauge(&self, _: Key, _: i64) {
         // println!("metrics -> gauge(name={}, value={})", key, value);
     }
 
